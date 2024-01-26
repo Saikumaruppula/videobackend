@@ -1,6 +1,6 @@
 const { MongoClient } = require("mongodb");
 require('dotenv').config();
-const pass = encodeURIComponent("Saikumar@123");
+const pass = encodeURIComponent(process.env.PASSWORD);
 
 const uri = `mongodb+srv://20r01a05b4:${pass}@cluster0.dm5qrsu.mongodb.net/?retryWrites=true&w=majority`;
 

@@ -1,11 +1,11 @@
 const { MongoClient } = require("mongodb");
+require('dotenv').config();
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
 const fs = require("fs").promises;
 const path = require("path");
 const cloudinary = require("cloudinary").v2;
-require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -13,18 +13,18 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Cloudinary configuration
+// Cloudinary config
 cloudinary.config({ 
   cloud_name: process.env.NAME, 
   api_key: process.env.API, 
   api_secret: process.env.SECRET
 });
 
-// Multer configuration
+// Multer code
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-// Files directory setup
+// Files exist or not
 const filesDirectory = path.join(__dirname, 'files');
 const directoryExists = async (directory) => {
   try {
@@ -36,26 +36,31 @@ const directoryExists = async (directory) => {
 
 directoryExists(filesDirectory);
 
-// Function to upload file to Cloudinary
-const sendToCloudinary = async (fileBuffer, type) => {
+// Function to upload video to Cloudinary
+const sendToCloudinary = async (videoFilePath, type) => {
   try {
-    const cloudinaryResponse = await cloudinary.uploader.upload(fileBuffer, {
+    const cloudinaryResponse = await cloudinary.uploader.upload(videoFilePath, {
       resource_type: type === 'video' ? 'video' : 'image',
+      allowed_formats: type === 'video' ? ['mp4', 'avi', 'mpg'] : ['jpg', 'jpeg', 'png', 'gif'],
       folder: 'sai_info',
       timestamp: Math.floor(Date.now() / 1000),
     });
 
+    await fs.unlink(videoFilePath);
     return cloudinaryResponse.url;
   } catch (error) {
     console.error("Error uploading to Cloudinary:", error);
-    throw error;
+    throw error; // Rethrow the error to handle it in the calling function
   }
 };
 
-// MongoDB connection setup
+const password=encodeURIComponent(process.env.PASSWORD);
+const uri='mongodb+srv://20r01a05b4:Saikumar%40123@cluster0.dm5qrsu.mongodb.net/?retryWrites=true&w=majority'
+
+
 const mongoConnect = async () => {
+  const client = new MongoClient(uri);
   try {
-    const client = new MongoClient(process.env.MONGO_URI);
     await client.connect();
     console.log("Connected to MongoDB");
     return client;
@@ -65,76 +70,82 @@ const mongoConnect = async () => {
   }
 };
 
-// Route to handle file uploads
-app.post("/upload", upload.fields([{ name: 'thumbnail' }, { name: 'video' }]), async (req, res) => {
+const dataSend = async (obj) => {
+  const client = await mongoConnect();
+  const db = client.db("total");
+  const collection = db.collection("users");
   try {
-    const { title, description } = req.body;
-    const thumbnailFiles = req.files["thumbnail"];
-    const videoFiles = req.files["video"];
-
-    if (thumbnailFiles.length > 0 && videoFiles.length > 0) {
-      const thumbnailBuffer = thumbnailFiles[0].buffer;
-      const videoBuffer = videoFiles[0].buffer;
-
-      const image_url = await sendToCloudinary(thumbnailBuffer, "image");
-      const video_url = await sendToCloudinary(videoBuffer, "video");
-
-      const obj = {
-        title: title,
-        description: description,
-        image_url: image_url,
-        video_url: video_url
-      };
-
-      const client = await mongoConnect();
-      const db = client.db("total");
-      const collection = db.collection("users");
-      
-      await collection.insertOne(obj);
-      console.log("Data sent successfully");
-
-      // Close the MongoDB connection
-      await client.close();
-    }
-
-    res.json({ message: "Data from the server received successfully!" });
-  } catch (error) {
-    console.error("Error handling file upload:", error);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
-// Route to retrieve data from MongoDB
-app.get("/list", async (req, res) => {
-  try {
-    const client = await mongoConnect();
-    const db = client.db("total");
-    const collection = db.collection("users");
-    
-    const data = await collection.find({}).toArray();
-    
-    // Close the MongoDB connection
-    await client.close();
-
-    res.json({ data });
-  } catch (error) {
-    console.error("Error retrieving data from MongoDB:", error);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
-// Start the server only after establishing a connection to MongoDB
-const startServer = async () => {
-  try {
-    await mongoConnect();
-    app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
-    });
-  } catch (error) {
-    console.error("Error starting server:", error);
-    process.exit(1);
+    await collection.insertOne(obj);
+    console.log("Data sent successfully");
+  } catch (err) {
+    console.error(err);
+  } finally {
+ 
   }
 };
 
-// Call the function to start the server
+const dataReceive = async () => {
+  console.log("receving the data")
+  const client = await mongoConnect();
+  const db = client.db("total");
+  const collection = db.collection("users");
+  const data = await collection.find({}).toArray();
+ // Close the client connection after retrieving data
+  return data;
+};
+
+app.post("/upload", upload.fields([{ name: 'thumbnail' }, { name: 'video' }]), async (req, res) => {
+  const { title, description } = req.body;
+  console.log("post request");
+  const thumbnailFiles = req.files["thumbnail"];
+  const videoFiles = req.files["video"];
+
+  if (thumbnailFiles.length > 0 && videoFiles.length > 0) {
+    const thumbnailFilePath = path.join(filesDirectory, 'thumbnail.jpg');
+    const videoFilePath = path.join(filesDirectory, 'video.mp4');
+
+    await fs.writeFile(thumbnailFilePath, thumbnailFiles[0].buffer);
+    await fs.writeFile(videoFilePath, videoFiles[0].buffer);
+
+    try {
+      const image_url = await sendToCloudinary(thumbnailFilePath, "image");
+      const video_url = await sendToCloudinary(videoFilePath, "video");
+      const obj = {
+        "title": title,
+        "description": description,
+        "image_url": image_url,
+        "video_url": video_url
+      };
+
+      await dataSend(obj);
+      res.json({ message: "Data from the server received successfully!" });
+    } catch (error) {
+      res.status(500).json({ error: "Error processing the request" });
+    }
+  } else {
+    res.status(400).json({ error: "Invalid request payload" });
+  }
+});
+
+app.get("/list", async (req, res) => {
+  console.log("error in receiving data")
+  try {
+    const data = await dataReceive();
+    res.json({ "data": data });
+  } catch (error) {
+    res.status(500).json({ error: "Error retrieving data from MongoDB" });
+  }
+});
+
+const startServer = async () => {
+  try {
+    await mongoConnect(); // Ensure MongoDB connection is established
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+  } catch (err) {
+    console.error("Error starting the server:", err);
+  }
+};
+
 startServer();

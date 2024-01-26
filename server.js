@@ -73,8 +73,8 @@ const mongoConnect = async () => {
 };
 
 
-const dataSend = async (client, obj) => {
-   const client=await mongoConnect();
+const dataSend = async (obj) => {
+ const client=await mongoConnect();
   const db = client.db("total");
   const collection = db.collection("users");
   try {
@@ -87,7 +87,7 @@ const dataSend = async (client, obj) => {
   }
 };
 
-const dataReceive = async (client) => {
+const dataReceive = async () => {
   const client= await mongoConnect();
   const db = client.db("total");
   const collection = db.collection("users");
@@ -117,16 +117,15 @@ app.post("/upload", upload.fields([{ name: 'thumbnail' }, { name: 'video' }]), a
       "video_url": video_url
     };
 
-    const client = await mongoConnect();
-    await dataSend(client, obj);
+    await dataSend(obj);
   }
 
   res.json({ message: "Data from the server received successfully!" });
 });
 
 app.get("/list", async (req, res) => {
-  const client = await mongoConnect();
-  const data = await dataReceive(client);
+  
+  const data = await dataReceive();
   res.json({ "data": data });
 });
 

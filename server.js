@@ -58,7 +58,7 @@ const sendToCloudinary = async (videoFilePath, type) => {
 
 const mongoConnect = async () => {
   try {
-    const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
+    const client = new MongoClient(uri, {  useUnifiedTopology: true });
     await client.connect();
     console.log("Connected to MongoDB");
     return client;

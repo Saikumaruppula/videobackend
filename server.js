@@ -26,27 +26,19 @@ const upload = multer({ storage: storage });
 
 // Files exist or not
 const filesDirectory = path.join(__dirname, 'files');
-const directoryExists = async (directory) => {
-  try {
-    await fs.access(directory);
-  } catch (error) {
-    await fs.mkdir(directory);
-  }
-};
 
-directoryExists(filesDirectory);
 
 // Function to upload video to Cloudinary
 const sendToCloudinary = async (videoFilePath, type) => {
   try {
-    const cloudinaryResponse = await cloudinary.uploader.upload(videoFilePath, {
+    const cloudinaryResponse = await cloudinary.uploader.upload_stream(videoFilePath, {
       resource_type: type === 'video' ? 'video' : 'image',
       allowed_formats: type === 'video' ? ['mp4', 'avi', 'mpg'] : ['jpg', 'jpeg', 'png', 'gif'],
       folder: 'sai_info',
       timestamp: Math.floor(Date.now() / 1000),
     });
 
-    await fs.unlink(videoFilePath);
+   
     return cloudinaryResponse.url;
   } catch (error) {
     console.error("Error uploading to Cloudinary:", error);
@@ -101,15 +93,11 @@ app.post("/upload", upload.fields([{ name: 'thumbnail' }, { name: 'video' }]), a
   const videoFiles = req.files["video"];
 
   if (thumbnailFiles.length > 0 && videoFiles.length > 0) {
-    const thumbnailFilePath = path.join(filesDirectory, 'thumbnail.jpg');
-    const videoFilePath = path.join(filesDirectory, 'video.mp4');
-
-    await fs.writeFile(thumbnailFilePath, thumbnailFiles[0].buffer);
-    await fs.writeFile(videoFilePath, videoFiles[0].buffer);
-
+   
     try {
-      const image_url = await sendToCloudinary(thumbnailFilePath, "image");
-      const video_url = await sendToCloudinary(videoFilePath, "video");
+      const image_url = await sendToCloudinary(thumbnailFiles[0].buffer, "image");
+      const video_url = await sendToCloudinary(videoFiles[0].buffer, "video");
+      
       const obj = {
         "title": title,
         "description": description,

@@ -13,8 +13,8 @@ const cloudinary = require("cloudinary").v2;
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
 app.use(express.json());
+app.use(cors());
 
 // cloudinary config
 cloudinary.config({ 
@@ -56,25 +56,20 @@ const sendToCloudinary = async (videoFilePath, type) => {
   }
 };
 
-
 const mongoConnect = async () => {
-
   try {
-    const client = new MongoClient(uri);
-   await client.connect();
+    const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
+    await client.connect();
     console.log("Connected to MongoDB");
     return client;
-
-    
   } catch (err) {
     console.error("Error connecting to MongoDB:", err);
-    throw err
+    throw err;
   }
 };
 
-
 const dataSend = async (obj) => {
- const client=await mongoConnect();
+  const client = await mongoConnect();
   const db = client.db("total");
   const collection = db.collection("users");
   try {
@@ -88,7 +83,7 @@ const dataSend = async (obj) => {
 };
 
 const dataReceive = async () => {
-  const client= await mongoConnect();
+  const client = await mongoConnect();
   const db = client.db("total");
   const collection = db.collection("users");
   const data = await collection.find({}).toArray();
@@ -124,9 +119,14 @@ app.post("/upload", upload.fields([{ name: 'thumbnail' }, { name: 'video' }]), a
 });
 
 app.get("/list", async (req, res) => {
-  
   const data = await dataReceive();
   res.json({ "data": data });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).send('Something went wrong!');
 });
 
 app.listen(PORT, () => {
